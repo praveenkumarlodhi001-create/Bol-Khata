@@ -1,0 +1,13 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+.dev-jwt-secret
+
+# Dependencies and local tooling
+node_modules/
+.expo/
+dist/
+build/
+.git/
+.DS_Store

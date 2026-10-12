@@ -1,0 +1,21 @@
+# Render Blueprint: Render me New + -> Blueprint se is repo ko chuno.
+services:
+  - type: web
+    name: bol-khata-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # deploy ke waqt Render puchega
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TRUST_PROXY
+        value: "1"

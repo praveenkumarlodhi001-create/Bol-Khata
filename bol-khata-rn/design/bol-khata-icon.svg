@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2E6E5E"/><stop offset="1" stop-color="#1F4D41"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F3D47D"/><stop offset="1" stop-color="#D9A441"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="url(#g)"/>
+<g transform="translate(0 36)"><path d="M220 260 Q220 226 256 226 H493 Q526 226 526 260 V765 Q526 733 490 733 H256 Q220 733 220 765Z" fill="#F7F8F3"/>
+<path d="M526 260 Q526 226 560 226 H768 Q804 226 804 260 V765 Q804 733 768 733 H560 Q526 733 526 765Z" fill="#E8F0EA"/>
+<path d="M526 260 V765" stroke="#1F4D41" stroke-width="20" stroke-linecap="round"/>
+<path d="M275 310 H450 M275 370 H420 M275 430 H450 M575 310 H740 M575 370 H710" stroke="#2E6E5E" stroke-width="18" stroke-linecap="round" opacity=".85"/></g>
+<path d="M584 480 Q603 450 622 480 T660 480 T698 480 T736 480" fill="none" stroke="#2E6E5E" stroke-width="17" stroke-linecap="round"/>
+<circle cx="704" cy="620" r="66" fill="url(#gold)" stroke="#FFF0BD" stroke-width="13"/>
+<text x="704" y="650" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="76" font-weight="700" fill="#1F4D41">₹</text>
+<rect x="388" y="515" width="54" height="105" rx="27" fill="#D9A441"/><path d="M368 570 V590 C368 633 396 658 415 658 C434 658 462 633 462 590 V570 M415 658 V690 M389 690 H441" fill="none" stroke="#D9A441" stroke-width="18" stroke-linecap="round"/><path d="M350 552 Q333 570 350 608 M480 552 Q497 570 480 608" fill="none" stroke="#D9A441" stroke-width="12" stroke-linecap="round"/>
+</svg>
