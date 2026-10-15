@@ -35,6 +35,14 @@ import ProfileTab from './src/components/ProfileTab'
 import TabIcon from './src/components/TabIcon'
 import { PopupProvider, usePopup } from './src/components/Popup'
 import RoleChoiceScreen from './src/screens/RoleChoiceScreen'
+import BusinessSetupScreen from './src/screens/BusinessSetupScreen'
+import OnboardingScreen from './src/screens/OnboardingScreen'
+import LockScreen from './src/components/LockScreen'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { isLockOn, removeLock } from './src/services/security'
+import { scheduleEvening } from './src/services/notify'
+import { getReport } from './src/services/dataService'
+import { businessLabel } from './src/data/catalog'
 import Avatar from './src/components/Avatar'
 import { I18nProvider, useT } from './src/i18n'
 import { ThemeProvider, useThemedStyles } from './src/theme/ThemeContext'
@@ -57,7 +65,7 @@ import { BRAND_NAME } from './src/config/brand'
 function Dashboard() {
   const { colors, styles } = useThemedStyles(createStyles)
   const { mode } = useTheme()
-  const { tr } = useT()
+  const { tr, lang } = useT()
   const popup = usePopup()
   const { user } = useAuth()
   const isBuyer = user?.role === 'buyer' // grahak ke paas dukaan ka hisaab/sync nahi hota
@@ -146,6 +154,24 @@ function Dashboard() {
     return () => clearInterval(timer)
   }, [data.pending, runSync, isBuyer])
 
+  // Shaam ka reminder: aaj ka udhar + kul baaki, taaza aankdon ke saath dobara schedule
+  const refreshReminder = useCallback(async (summary) => {
+    if (isBuyer) return
+    try {
+      const r = await getReport(1)
+      await scheduleEvening({
+        given: r.given,
+        owed: summary ? summary.owed : 0,
+        text: {
+          title: BRAND_NAME,
+          today: (g, o) => tr('notifyToday', { given: '₹' + Math.round(g).toLocaleString('en-IN'), owed: '₹' + Math.round(o).toLocaleString('en-IN') }),
+          generic: tr('notifyGeneric')
+        }
+      })
+    } catch (e) { /* net na ho to purana schedule chalta rehta hai */ }
+  }, [isBuyer, tr])
+  useEffect(() => { if (data.summary && !data.offline) refreshReminder(data.summary) }, [data.summary && data.summary.owed, data.summary && data.summary.given, refreshReminder])
+
   async function onRefresh() {
     setRefreshing(true)
     await runSync(false)
@@ -154,9 +180,9 @@ function Dashboard() {
   }
 
   // true = save ho gaya, false = fail (form tab apna data bachakar rakhta hai)
-  async function handleAdd(name, amount, type, reason = '', phone = '') {
+  async function handleAdd(name, amount, type, reason = '', phone = '', items = null) {
     try {
-      setData(await addTransaction(name, amount, type, reason, phone)) // phone me turant save, net ho ya na ho
+      setData(await addTransaction(name, amount, type, reason, phone, items)) // phone me turant save, net ho ya na ho
       showToast(tr('savedToast', { name }), 'celebrate')
       if (!reduceMotion) { setSavedBurst(true); burstScale.setValue(0.4); burstOpacity.setValue(1); Animated.sequence([Animated.spring(burstScale, { toValue: 1.15, useNativeDriver: true }), Animated.timing(burstScale, { toValue: 1, duration: 120, useNativeDriver: true }), Animated.delay(260), Animated.timing(burstOpacity, { toValue: 0, duration: 180, useNativeDriver: true })]).start(({ finished }) => { if (finished) setSavedBurst(false) }) }
       runSync(true) // server ko bhejna peeche chalta hai
@@ -249,10 +275,9 @@ function Dashboard() {
       >
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
-            <Image source={require('./assets/icon.png')} style={styles.brandIcon} resizeMode="cover" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{BRAND_NAME}</Text>
-              <Text style={styles.who} numberOfLines={1}>{who}</Text>
+              <Text style={styles.title} numberOfLines={1}>{user?.name || user?.email || (user?.phone ? '+91 ' + user.phone : BRAND_NAME)}</Text>
+              <Text style={styles.who} numberOfLines={1}>{[isBuyer ? tr('buyerRole') : (user?.businessType ? businessLabel(user.businessType, lang) : tr('sellerRole')), user?.phone ? '+91 ' + user.phone : user?.email].filter(Boolean).join(' · ')}</Text>
             </View>
           </View>
           <TouchableOpacity onPress={() => setTab('profile')} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={tr('openProfile')} hitSlop={8}>
@@ -319,7 +344,7 @@ function Dashboard() {
         ) : tab === 'mine' ? (
           <><ReportCard version={reportVersion} /><MyAccounts refreshKey={refreshKey} onToast={showToast} /></>
         ) : (
-          <ProfileTab pending={data.pending || 0} onSaveUpi={handleUpi} onData={setData} onToast={showToast} />
+          <ProfileTab pending={data.pending || 0} onSaveUpi={handleUpi} onData={setData} onToast={showToast} onNotifyChanged={() => refreshReminder(data.summary)} />
         )}
 
         {tab !== 'profile' ? <Text style={styles.footer}>{tr('footer')}</Text> : null}
@@ -344,7 +369,7 @@ function Dashboard() {
             {toast ? <Animated.View style={[styles.sheetToast, toast.kind === 'err' && styles.toastErr, shadow, { opacity: toastProgress, transform: [{ translateY: toastProgress.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }] }]}><View style={styles.toastRow}><Animated.View style={{ transform: [{ scale: toastProgress.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}><Icon name={toast.kind === 'err' ? 'alert-circle-outline' : 'checkmark-circle'} size={20} color="#FFFFFF" cut={toast.kind === 'err' ? colors.alert : colors.milkDark} /></Animated.View><Text style={[styles.toastText, { flexShrink: 1 }]}>{toast.text}</Text></View></Animated.View> : null}
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
               <VoiceEntry onAdd={async (...args) => { const ok = await handleAdd(...args); if (ok) setShowEntry(false); return ok }} />
-              <ManualEntryForm onAdd={async (...args) => { const ok = await handleAdd(...args); if (ok) setShowEntry(false); return ok }} />
+              <ManualEntryForm customers={data.customers} onAdd={async (...args) => { const ok = await handleAdd(...args); if (ok) setShowEntry(false); return ok }} />
               <DailyCard customers={data.customers} onApply={async (...args) => { const ok = await handleDaily(...args); if (ok) setShowEntry(false); return ok }} />
             </ScrollView>
           </KeyboardAvoidingView>
@@ -389,18 +414,41 @@ function Dashboard() {
 function Root() {
   const { colors, styles } = useThemedStyles(createStyles)
   const { mode } = useTheme()
+  const { tr } = useT()
   const { user, initializing } = useAuth()
   const [minimumSplashDone, setMinimumSplashDone] = useState(false)
+  const [onboarded, setOnboarded] = useState(null) // null = abhi padh rahe hain
+  const [locked, setLocked] = useState(false)
+  const bgAt = useRef(0)
   useEffect(() => {
     const timer = setTimeout(() => setMinimumSplashDone(true), 1800)
+    AsyncStorage.getItem('vk_onboarded').then((v) => setOnboarded(v === '1')).catch(() => setOnboarded(true))
     return () => clearTimeout(timer)
   }, [])
-  if (initializing || !minimumSplashDone) {
+  const uid = user && user.id
+  useEffect(() => { if (uid) isLockOn(uid).then((on) => setLocked(on)); else setLocked(false) }, [uid])
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'background' || st === 'inactive') { if (!bgAt.current) bgAt.current = Date.now() }
+      else if (st === 'active') {
+        const away = bgAt.current ? Date.now() - bgAt.current : 0
+        bgAt.current = 0
+        if (uid && away > 20000) isLockOn(uid).then((on) => { if (on) setLocked(true) })
+      }
+    })
+    return () => sub.remove()
+  }, [uid])
+  function finishOnboarding() { setOnboarded(true); AsyncStorage.setItem('vk_onboarded', '1').catch(() => {}) }
+  if (initializing || !minimumSplashDone || onboarded === null) {
     return <><StatusBar barStyle="light-content" backgroundColor={mode === 'dark' ? '#102B25' : '#2E6E5E'} /><LoadingScreen dark={mode === 'dark'} /></>
+  }
+  if (!user && !onboarded) return <><StatusBar barStyle="light-content" backgroundColor={colors.milkDark} /><OnboardingScreen onDone={finishOnboarding} /></>
+  if (user && locked) {
+    return <LockScreen uid={uid} name={user.name} onUnlock={() => setLocked(false)} onForgot={async () => { await removeLock(uid); setLocked(false); logout() }} />
   }
   return (<>
     <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
-    {user ? (user.role ? <Dashboard key={user.role} /> : <RoleChoiceScreen />) : <AuthNavigator />}
+    {user ? (!user.role ? <RoleChoiceScreen /> : user.role === 'seller' && !user.businessType ? <BusinessSetupScreen /> : <Dashboard key={user.role} />) : <AuthNavigator />}
   </>)
 }
 

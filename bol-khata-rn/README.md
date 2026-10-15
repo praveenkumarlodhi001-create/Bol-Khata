@@ -1,8 +1,3 @@
-## v1.12.3 — Play Store preparation
-- Configured production API URL: `https://v-khatabook.onrender.com`.
-- Android package ID and iOS bundle identifier: `com.bolkhata.app`.
-- See `PLAY-STORE-RELEASE-CHECKLIST.md` at the project root before publishing.
-
 ## v1.11.2
 - Added English/Hindi auth copy keys, additional translations for backup, UPI, reports, and linked accounts, and the microphone accessibility label.
 - Toast feedback uses explicit kinds; entry-save checkmark and selected-tab icon animations respect reduced motion.
@@ -84,7 +79,7 @@ eas build --profile production --platform android
 Play Store पर डालने के लिए इन चीज़ों की भी ज़रूरत पड़ेगी (ये सिर्फ code से नहीं होतीं):
 
 1. **Google Play Console account** — एक बार का $25 (लगभग ₹2000) registration fee
-2. **App का असली package name तय करना** — अब package ID `com.bolkhata.app` है। Play Console में इसी ID से app बनाएं; publish करने के बाद इसे बदलना संभव नहीं होता
+2. **App का असली package name तय करना** — अभी `app.json` में `com.yourname.bolkhata` लिखा है, इसे बदलकर अपना (जैसे `com.aapkanaam.bolkhata`) कर लो
 3. **App icon और screenshots** — Play Store पर दिखाने के लिए (अभी placeholder हैं, असली icon `assets/icon.png` में डालना होगा)
 4. **Privacy Policy link** — Play Store हर app के लिए यह माँगता है, भले app simple हो
 5. Play Console में जाकर बना हुआ `.aab` upload करना, app की जानकारी भरना, फिर "Submit for review" — Google इसे review करता है (आमतौर पर कुछ दिन लगते हैं)

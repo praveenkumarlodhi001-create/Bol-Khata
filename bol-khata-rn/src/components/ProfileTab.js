@@ -11,11 +11,15 @@ import { useTheme, useThemedStyles } from '../theme/ThemeContext'
 import { useT, LANGS } from '../i18n'
 import { useAuth } from '../context/AuthContext'
 import { updateProfileName, updatePassword, sendPhoneOtp, verifyPhoneOtp, sendAccountDeleteOtp, removeAccount, logout, authErrorMessage, uploadProfilePhoto, deleteProfilePhoto } from '../services/authService'
+import ItemsCard from './ItemsCard'
+import SecurityCard from './SecurityCard'
+import NotifyCard from './NotifyCard'
+import QrModal from './QrModal'
 import Avatar from './Avatar'
 import Icon from './Icon'
 import { usePopup } from './Popup'
 
-export default function ProfileTab({pending=0,onSaveUpi,onData,onToast}) {
+export default function ProfileTab({pending=0,onSaveUpi,onData,onToast,onNotifyChanged}) {
  const {colors,styles}=useThemedStyles(makeStyles)
  const {mode,setMode,accent,setAccent}=useTheme()
  const {lang,setLang,tr}=useT()
@@ -35,6 +39,7 @@ export default function ProfileTab({pending=0,onSaveUpi,onData,onToast}) {
  const [busy,setBusy]=useState(false)
  const [photoBusy,setPhotoBusy]=useState(false)
  const [error,setError]=useState('')
+ const [showQr,setShowQr]=useState(false)
  const accents=[['green','Green'],['blue','Blue'],['purple','Purple'],['orange','Orange']]
  async function choosePhoto(source) {
    try {
@@ -118,8 +123,13 @@ export default function ProfileTab({pending=0,onSaveUpi,onData,onToast}) {
   </View>
   {user?.role !== 'buyer' ? <View style={styles.card}>
    <UpiCard upiId={user?.upiId} onSave={onSaveUpi}/>
+   {user?.upiId ? <Button title={tr('showMyQr')} variant="ghost" onPress={()=>setShowQr(true)} style={{marginTop:12}}/> : null}
    <BackupCard onData={onData} onToast={onToast}/>
   </View> : null}
+  {user?.role !== 'buyer' ? <ItemsCard onToast={onToast}/> : null}
+  {user?.role !== 'buyer' ? <NotifyCard onToast={onToast} onChanged={onNotifyChanged}/> : null}
+  <SecurityCard onToast={onToast}/>
+  <QrModal visible={showQr} onClose={()=>setShowQr(false)} upiId={user?.upiId} name={user?.name}/>
   {error ? <Text style={styles.error}>{error}</Text>:null}
   <View style={styles.card}>
    <Button title={tr('logout')} variant="ghost" icon="logout" onPress={async()=>{if(await popup.confirm({tone:'danger',icon:'logout',title:tr('logout'),message:tr('logout')+'?',confirmText:tr('logout')}))logout()}}/>

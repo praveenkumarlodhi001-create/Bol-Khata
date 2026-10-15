@@ -225,3 +225,8 @@ export async function resetPassword(identifier, code, newPassword) {
 export async function setRole(role) {
   return (await saveUserResponse('/api/auth/role', { role })).user
 }
+
+// Seller ka business type (kirana, dairy …)
+export async function setBusinessType(businessType) {
+  return (await saveUserResponse('/api/auth/business', { businessType }, 'PATCH')).user
+}

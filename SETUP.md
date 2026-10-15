@@ -47,7 +47,8 @@ Agar Expo Go "incompatible" jaisa message dikhaye, to us message me likha SDK nu
 
 - Server ka address app **apne aap** dhoondh leti hai (wahi laptop jahan `expo start` chal raha hai, port 4000).
   `app.json` me kuch likhna nahi padta.
-- Agar `expo start --tunnel` use karte ho ya server kahin deploy hai, to `app.json` ke `expo.extra.apiUrl` me production URL set hai: `https://v-khatabook.onrender.com`. Local development ke liye is value ko temporarily khali kar sakte hain.
+- Agar `expo start --tunnel` use karte ho ya server kahin deploy hai, to `app.json` ke `expo.extra.apiUrl`
+  me server ka URL likho (jaise `https://bolkhata.onrender.com`).
 - Windows firewall port 4000 roke to "Allow" karo, warna app "Server se connect nahi hua" dikhayegi.
 - Mic (voice) button Expo Go me kaam nahi karta — message dikhata hai. Baaki sab chalta hai.
   Voice ke liye baad me development build (`eas build --profile development`); code wahi rahega.

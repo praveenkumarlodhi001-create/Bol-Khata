@@ -10,6 +10,7 @@ import { useTheme } from '../theme/ThemeContext'
 import { useT } from '../i18n'
 import { fmt, fmtDate } from '../utils/format'
 import { reminderText, statementText, sendWhatsApp, sendSms, shareText } from '../utils/messages'
+import { sharePdfStatement } from '../utils/pdf'
 import { getHistory, editTransaction, deleteTransaction, editCustomer } from '../services/dataService'
 
 import { BRAND_NAME } from '../config/brand'
@@ -215,10 +216,10 @@ export default function CustomerDetail({ customer, shopName, upiId, onClose, onD
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.act}
-              onPress={() => shareText(statementText(shopName, c, shown || [], RANGE_NAME[range])).catch(() => {})}
+              onPress={() => sharePdfStatement(shopName, c, shown || [], RANGE_NAME[range]).catch(() => shareText(statementText(shopName, c, shown || [], RANGE_NAME[range])).catch(() => {}))}
               activeOpacity={0.8}
             >
-              <Text style={styles.actText}>📤 हिसाब share करो</Text>
+              <Text style={styles.actText}>📄 हिसाब PDF share करो</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.act}

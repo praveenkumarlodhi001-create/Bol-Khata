@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Bol-Khata",
+    "name": "Bol-khata",
     "slug": "bol-khata",
-    "version": "1.12.3",
+    "version": "1.12.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -20,7 +20,7 @@
       "**/*"
     ],
     "android": {
-      "package": "com.bolkhata.app",
+      "package": "com.vkhatabook.ledger",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2E6E5E",
@@ -30,7 +30,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.bolkhata.app",
+      "bundleIdentifier": "com.vkhatabook.ledger",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "आवाज़ से entry करने के लिए माइक की अनुमति दें। / Allow microphone access to add entries by voice.",
         "NSSpeechRecognitionUsageDescription": "आपकी आवाज़ को पहचानने के लिए। / Allow speech recognition to transcribe your voice.",
@@ -56,7 +56,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://v-khatabook.onrender.com",
+      "apiUrl": "",
       "eas": {
         "projectId": "2a7dd721-b578-42bc-b9d1-7ab65acfefe4"
       }

@@ -9,11 +9,16 @@ import Avatar from './Avatar'
 import { fmt } from '../utils/format'
 import { getMyAccounts, getMyHistory, linkByCode } from '../services/dataService'
 import { useT } from '../i18n'
+import { Linking } from 'react-native'
+import QrModal from './QrModal'
+import { upiUri } from '../utils/messages'
+import { businessLabel } from '../data/catalog'
 
 // Grahak ka view: "मेरे खाते" — अलग-अलग दुकानों में मेरा कितना बकाया है, और कोड से नया खाता जोड़ना.
 export default function MyAccounts({ refreshKey, onToast }) {
   const { colors, styles } = useThemedStyles(makeStyles)
-  const { tr } = useT()
+  const { tr, lang } = useT()
+  const [qr, setQr] = useState(null)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [code, setCode] = useState('')
@@ -60,6 +65,10 @@ export default function MyAccounts({ refreshKey, onToast }) {
     }
   }
 
+  async function payUpi(a) {
+    const uri = upiUri({ upiId: a.shopUpiId, name: a.shopName, amount: a.balance > 0 ? a.balance : 0 })
+    try { await Linking.openURL(uri) } catch (e) { onToast(tr('noUpiApp'), 'err'); setQr(a) }
+  }
   const accounts = data ? data.accounts : []
   const s = data ? data.summary : { owed: 0, paid: 0 }
 
@@ -114,12 +123,24 @@ export default function MyAccounts({ refreshKey, onToast }) {
             </TouchableOpacity>
             {openId === a.id && (
               <View style={{ marginTop: 10 }}>
+                <View style={styles.shopBox}>
+                  <Text style={styles.shopLine}>{a.shopName}{a.shopBusinessType ? ` · ${businessLabel(a.shopBusinessType, lang)}` : ''}</Text>
+                  {a.shopPhone ? <TouchableOpacity onPress={() => Linking.openURL('tel:' + a.shopPhone).catch(() => {})}><Text style={styles.shopPhone}>📞 +91 {a.shopPhone}</Text></TouchableOpacity> : null}
+                  {a.shopUpiId ? <Text style={styles.shopLine}>UPI: {a.shopUpiId}</Text> : <Text style={styles.meta}>{tr('shopNoUpi')}</Text>}
+                  {a.shopUpiId ? (
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                      <Button title={a.balance > 0 ? `${tr('payUpi')} ${fmt(a.balance)}` : tr('payUpi')} onPress={() => payUpi(a)} style={{ flex: 1 }} />
+                      <Button title={tr('showQr')} variant="ghost" onPress={() => setQr(a)} style={{ flex: 1 }} />
+                    </View>
+                  ) : null}
+                </View>
                 <TransactionHistory items={history[a.id]} />
               </View>
             )}
           </View>
         )
       })}
+      <QrModal visible={!!qr} onClose={() => setQr(null)} upiId={qr && qr.shopUpiId} name={qr && qr.shopName} amount={qr && qr.balance > 0 ? qr.balance : 0} />
     </View>
   )
 }
@@ -137,5 +158,8 @@ function makeStyles(colors) { return StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   shop: { fontWeight: '700', color: colors.ink, fontSize: 15, flexShrink: 1 },
   meta: { fontSize: 11, color: colors.inkSoft, marginTop: 2 },
+  shopBox: { backgroundColor: colors.bg, borderRadius: radius.md, padding: 12, marginBottom: 8 },
+  shopLine: { color: colors.ink, fontSize: 13, fontWeight: '600', marginBottom: 3 },
+  shopPhone: { color: colors.milk, fontSize: 13, fontWeight: '700', marginBottom: 3 },
   bal: { fontWeight: '800', fontSize: 13 }
 }) }

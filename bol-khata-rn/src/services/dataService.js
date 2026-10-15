@@ -62,6 +62,25 @@ export function todayKey(d = new Date()) {
 }
 
 // Server jaise hi check (taaki galat entry outbox me jaakar atke nahi)
+const UNITS = ['kg', 'litre', 'piece', 'packet']
+// Items: [{ name, qty, rate, unit? }] -> saaf list aur total (server bhi yahi hisaab karta hai)
+export function cleanItems(items) {
+  if (!Array.isArray(items) || items.length < 1 || items.length > 20) throw new Error('Add 1 to 20 items.')
+  let total = 0
+  const out = items.map((x) => {
+    const name = typeof x.name === 'string' ? x.name.trim() : ''
+    const qty = Math.round(Number(x.qty) * 1000) / 1000
+    const rate = round2(x.rate)
+    if (!name || name.length > 40) throw new Error('Item name is invalid.')
+    if (!Number.isFinite(qty) || qty <= 0 || qty > 100000) throw new Error('Item quantity is invalid.')
+    if (!Number.isFinite(rate) || rate < 0 || rate > 10000000) throw new Error('Item rate is invalid.')
+    if (x.unit && !UNITS.includes(x.unit)) throw new Error('Item unit is invalid.')
+    total = round2(total + round2(qty * rate))
+    return { name, qty, rate, ...(x.unit ? { unit: x.unit } : {}) }
+  })
+  return { items: out, total }
+}
+
 function validateEntry(name, amount, type, reason, phone) {
   const n = typeof name === 'string' ? name.trim() : ''
   const amt = round2(amount)
@@ -162,6 +181,7 @@ async function doFlush() {
           type: item.type,
           reason: item.reason,
           phone: item.phone,
+          ...(item.items ? { items: item.items } : {}),
           at: item.at,
           ...(item.day ? { day: item.day } : {})
         }
@@ -227,12 +247,38 @@ export async function getLocalView() {
 
 // ===== Malik (dukaan) =====
 // Entry turant phone me save hoti hai aur uska hisaab dikh jaata hai; server ko bhejna `syncNow()` karta hai.
-export async function addTransaction(name, amount, type, reason = '', phone = '') {
+export async function addTransaction(name, amount, type, reason = '', phone = '', items = null) {
   const uid = requireUid()
+  let lines = null
+  if (items && items.length) {
+    if (type !== 'udhar') throw new Error('Items can only be added to a credit entry.')
+    const c = cleanItems(items)
+    lines = c.items
+    amount = c.total
+  }
   const v = validateEntry(name, amount, type, reason, phone)
-  const item = { k: newId(), ...v, at: new Date().toISOString() }
+  const item = { k: newId(), ...v, ...(lines ? { items: lines } : {}), at: new Date().toISOString() }
   await locked(async () => writeQueue(uid, [...(await readQueue(uid)), item]))
+  await rememberLast(uid, v, lines)
   return getLocalView()
+}
+
+// ---------- pichli entry yaad rakhna (dohrao) aur naam suggestion ----------
+const lKey = (uid) => `vk_last_${uid}`
+async function rememberLast(uid, v, lines) {
+  try {
+    const map = (await readJson(lKey(uid), {})) || {}
+    delete map[v.name]
+    map[v.name] = { amount: v.amount, type: v.type, reason: v.reason, ...(lines ? { items: lines } : {}), at: Date.now() }
+    const names = Object.keys(map)
+    if (names.length > 200) delete map[names[0]]
+    map.__last = v.name
+    await AsyncStorage.setItem(lKey(uid), JSON.stringify(map))
+  } catch (e) { /* yaad rakhna zaroori nahi */ }
+}
+// -> { name: {amount,type,reason,items?}, ... , __last: 'naam' }
+export async function getLastEntries() {
+  try { return (await readJson(lKey(requireUid()), {})) || {} } catch (e) { return {} }
 }
 
 // "Roz ki entry": customers = [{ id, name, daily: { amount, reason } }]. Aaj ki entry ek grahak ki ek hi baar judti hai
@@ -282,7 +328,7 @@ export async function getHistory(customerId, name) {
   const queue = await locked(() => readQueue(uid))
   const waiting = queue
     .filter((i) => !i.error && i.name === name)
-    .map((i) => ({ id: 'p:' + i.k, type: i.type, amount: i.amount, reason: i.reason, at: i.at, pending: true }))
+    .map((i) => ({ id: 'p:' + i.k, type: i.type, amount: i.amount, reason: i.reason, at: i.at, pending: true, ...(i.items ? { items: i.items.map((x) => ({ name: x.name, qty: x.qty, rate: x.rate, unit: x.unit || null, amount: round2(x.qty * x.rate) })) } : {}) }))
     .reverse()
   return [...waiting, ...rows]
 }
@@ -311,3 +357,9 @@ export const getReport = (days) => call(`/api/report?days=${days}`)
 export const getBackup = () => call('/api/backup')
 // -> { added, skipped, customers, summary }
 export const restoreBackup = (backup) => viaServer('/api/restore', { method: 'POST', body: backup })
+
+// ===== Seller ka catalog (items) =====
+export const getItems = () => call('/api/items').then((r) => r.items)
+export const addItem = (item) => call('/api/items', { method: 'POST', body: item }).then((r) => r.item)
+export const updateItem = (id, patch) => call(`/api/items/${id}`, { method: 'PATCH', body: patch }).then((r) => r.item)
+export const seedItems = (items) => call('/api/items/seed', { method: 'POST', body: { items } }).then((r) => r.items)

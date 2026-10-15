@@ -83,3 +83,15 @@ export async function sendSms(phone, text) {
 }
 
 export const shareText = (text) => Share.share({ message: text })
+
+// UPI QR / app me kholne wala link (hamesha seedha upi://pay — QR scan ya UPI app ke liye). Naam lamba ho to chhota karte hain taaki QR chhota rahe.
+export function upiUri({ upiId, name, amount }) {
+  if (!upiId) return ''
+  const enc = encodeURIComponent
+  const am = amount > 0 ? `&am=${Number(amount).toFixed(2)}` : ''
+  let pn = String(name || '').trim().slice(0, 30)
+  const build = () => `upi://pay?pa=${enc(upiId).replace(/%40/g, '@')}${pn ? `&pn=${enc(pn)}` : ''}${am}&cu=INR`
+  let uri = build()
+  while (uri.length > 190 && pn) { pn = pn.slice(0, -1); uri = build() }
+  return uri
+}
