@@ -335,6 +335,14 @@ export async function getHistory(customerId, name) {
 
 export const deleteCustomer = (customerId) => viaServer(`/api/customers/${customerId}`, { method: 'DELETE' })
 
+// Import only the contacts the seller explicitly selected; the full device address book stays on-device.
+export async function importCustomersFromContacts(contacts) {
+  const uid = requireUid()
+  const result = await call('/api/customers/import', { method: 'POST', body: { contacts } })
+  const view = await finalize(uid, { customers: result.customers, summary: result.summary })
+  return { ...result, ...view }
+}
+
 // ===== Grahak (jiska khata kisi dukaan me hai) =====
 export const getMyAccounts = () => call('/api/my-accounts')
 

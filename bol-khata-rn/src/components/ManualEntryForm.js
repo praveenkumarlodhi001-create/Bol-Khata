@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, TextInput, Alert, ActivityIndicator } from 'react-native'
+import * as Contacts from 'expo-contacts'
 import Input from './ui/Input'
 import Button from './ui/Button'
 import { radius, shadow } from '../theme/colors'
@@ -12,7 +13,7 @@ import { unitLabel } from '../data/catalog'
 
 const QUICK_REASONS = ['दूध', 'राशन', 'नकद', 'सब्ज़ी', 'दवाई']
 
-export default function ManualEntryForm({ onAdd, customers = [] }) {
+export default function ManualEntryForm({ onAdd, onImportContacts, customers = [] }) {
   const { colors } = useTheme()
   const { tr, lang } = useT()
   const styles = makeStyles(colors)
@@ -27,6 +28,13 @@ export default function ManualEntryForm({ onAdd, customers = [] }) {
   const [catalog, setCatalog] = useState([])
   const [lines, setLines] = useState([]) // [{ name, unit, qty:'', rate:'' }]
   const [last, setLast] = useState({})
+  const [contactsOpen, setContactsOpen] = useState(false)
+  const [contactsLoading, setContactsLoading] = useState(false)
+  const [deviceContacts, setDeviceContacts] = useState([])
+  const [contactQuery, setContactQuery] = useState('')
+  const [multiSelect, setMultiSelect] = useState(false)
+  const [selectedContacts, setSelectedContacts] = useState([])
+  const [importingContacts, setImportingContacts] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -44,6 +52,89 @@ export default function ManualEntryForm({ onAdd, customers = [] }) {
   const lineTotal = lines.reduce((sum, l) => sum + (parseFloat(l.qty) || 0) * (parseFloat(l.rate) || 0), 0)
 
   function pickCustomer(c) { setName(c.name); if (c.phone && !phone) setPhone(c.phone) }
+
+  async function openDeviceContacts() {
+    try {
+      setContactsLoading(true)
+      const permission = await Contacts.requestPermissionsAsync()
+      if (permission.status !== 'granted') {
+        Alert.alert('Contacts permission', 'कॉन्टैक्ट चुनने के लिए Contacts की अनुमति दें। आप चाहें तो नाम और मोबाइल नंबर manually भी भर सकते हैं।')
+        return
+      }
+      // Read every available page; a single pageSize can silently miss contacts on large address books.
+      const allContacts = []
+      let pageOffset = 0
+      let hasNextPage = true
+      while (hasNextPage) {
+        const result = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+          sort: Contacts.SortTypes.FirstName,
+          pageSize: 500,
+          pageOffset,
+        })
+        allContacts.push(...(result.data || []))
+        hasNextPage = !!result.hasNextPage
+        pageOffset += (result.data || []).length
+        if (!result.data || result.data.length === 0) break
+      }
+      const usable = allContacts
+        .flatMap((contact) => (contact.phoneNumbers || [])
+          .filter((item) => item.number)
+          .map((phoneEntry, phoneIndex) => {
+            if (!contact.name) return null
+            const digits = String(phoneEntry.number).replace(/\D/g, '')
+            const normalizedPhone = digits.length >= 10 ? digits.slice(-10) : digits
+            if (normalizedPhone.length !== 10 || !/^[6-9]\d{9}$/.test(normalizedPhone)) return null
+            return { id: `${contact.id}:${phoneIndex}`, contactId: contact.id, name: contact.name, phone: normalizedPhone, displayPhone: phoneEntry.number }
+          }))
+        .filter(Boolean)
+        .sort((a, b) => a.name.localeCompare(b.name))
+      setDeviceContacts(usable)
+      setContactQuery('')
+      setMultiSelect(false)
+      setSelectedContacts([])
+      setContactsOpen(true)
+    } catch (error) {
+      Alert.alert('Contacts unavailable', 'मोबाइल कॉन्टैक्ट नहीं पढ़ पाए। कृपया नाम और नंबर manually भरें।')
+    } finally {
+      setContactsLoading(false)
+    }
+  }
+
+  const filteredContacts = useMemo(() => {
+    const query = contactQuery.trim().toLowerCase()
+    if (!query) return deviceContacts
+    return deviceContacts.filter((contact) => contact.name.toLowerCase().includes(query) || contact.phone.includes(query))
+  }, [deviceContacts, contactQuery])
+
+  function toggleSelectedContact(contact) {
+    setSelectedContacts((current) => current.some((item) => item.id === contact.id)
+      ? current.filter((item) => item.id !== contact.id)
+      : [...current, contact])
+  }
+
+  async function importSelectedContacts() {
+    if (!selectedContacts.length || !onImportContacts) return
+    try {
+      setImportingContacts(true)
+      const result = await onImportContacts(selectedContacts.map(({ name, phone }) => ({ name, phone })))
+      if (result && result.ok) {
+        Alert.alert('Contacts import', `${result.added || 0} ग्राहक जोड़े गए।${result.skipped ? ` ${result.skipped} पहले से मौजूद थे।` : ''}`)
+        setContactsOpen(false)
+        setSelectedContacts([])
+        setMultiSelect(false)
+      }
+    } finally {
+      setImportingContacts(false)
+    }
+  }
+
+  function chooseDeviceContact(contact) {
+    setName(contact.name)
+    setPhone(contact.phone)
+    setErrors((current) => ({ ...current, name: undefined, phone: undefined }))
+    setContactsOpen(false)
+  }
   function addLine(it) {
     setType('udhar')
     setLines((ls) => [...ls, { name: it.name, unit: it.unit, qty: '1', rate: it.price != null ? String(it.price) : '' }])
@@ -100,6 +191,10 @@ export default function ManualEntryForm({ onAdd, customers = [] }) {
             onChangeText={setName}
             error={errors.name}
           />
+          <TouchableOpacity style={styles.contactsButton} onPress={openDeviceContacts} disabled={contactsLoading} activeOpacity={0.8}>
+            {contactsLoading ? <ActivityIndicator size="small" color={colors.milk} /> : <Icon name="person" size={18} color={colors.milk} />}
+            <Text style={styles.contactsButtonText}>{contactsLoading ? 'कॉन्टैक्ट लोड हो रहे हैं…' : 'मोबाइल Contacts से चुनें'}</Text>
+          </TouchableOpacity>
           {suggestions.length > 0 ? <View style={styles.chips}>{suggestions.map((c) => <TouchableOpacity key={c.id} style={styles.chip} onPress={() => pickCustomer(c)}><Text style={styles.chipText}>{c.name}</Text></TouchableOpacity>)}</View> : null}
           {lastForName ? (
             <TouchableOpacity style={styles.repeat} onPress={() => repeat(lastForName)} activeOpacity={0.8}>
@@ -180,12 +275,103 @@ export default function ManualEntryForm({ onAdd, customers = [] }) {
           <Button title={tr('add')} icon="add" onPress={handleSave} loading={loading} />
         </View>
       )}
+      <Modal visible={contactsOpen} animationType="slide" transparent onRequestClose={() => setContactsOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.contactsModal}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>मोबाइल Contacts</Text>
+                <Text style={styles.modalSubtitle}>किसी संपर्क को चुनें; नाम और नंबर भर जाएंगे।</Text>
+              </View>
+              <TouchableOpacity onPress={() => setContactsOpen(false)} accessibilityLabel="Close contacts" hitSlop={10}>
+                <Icon name="close" size={24} color={colors.ink} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.contactSearch}
+              placeholder="नाम या मोबाइल नंबर खोजें"
+              placeholderTextColor={colors.inkSoft}
+              value={contactQuery}
+              onChangeText={setContactQuery}
+              autoCorrect={false}
+            />
+            <View style={styles.contactActions}>
+              <TouchableOpacity
+                style={[styles.multiSelectButton, multiSelect && styles.multiSelectButtonActive]}
+                onPress={() => { setMultiSelect((value) => !value); setSelectedContacts([]) }}
+                activeOpacity={0.8}
+              >
+                <Icon name="square-outline" size={17} color={multiSelect ? '#FFFFFF' : colors.milk} />
+                <Text style={[styles.multiSelectText, multiSelect && styles.multiSelectTextActive]}>{multiSelect ? 'एक-एक चुनने पर लौटें' : 'एक साथ कई ग्राहक चुनें'}</Text>
+              </TouchableOpacity>
+              {multiSelect ? (
+                <TouchableOpacity onPress={() => setSelectedContacts((current) => {
+                  const visibleIds = new Set(filteredContacts.map((item) => item.id))
+                  const allVisibleSelected = filteredContacts.length > 0 && filteredContacts.every((item) => current.some((picked) => picked.id === item.id))
+                  return allVisibleSelected ? current.filter((item) => !visibleIds.has(item.id)) : [...current.filter((item) => !visibleIds.has(item.id)), ...filteredContacts]
+                })}>
+                  <Text style={styles.selectAllText}>{filteredContacts.length > 0 && filteredContacts.every((item) => selectedContacts.some((picked) => picked.id === item.id)) ? 'दिख रहे हटाएँ' : 'दिख रहे सभी चुनें'}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {multiSelect ? <Text style={styles.selectionCount}>{selectedContacts.length} संपर्क चुने गए · चुने हुए संपर्क ही Bol-Khata में भेजे जाएँगे</Text> : null}
+            <FlatList
+              data={filteredContacts}
+              keyExtractor={(item) => String(item.id)}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={styles.noContacts}>{deviceContacts.length ? 'कोई संपर्क नहीं मिला।' : 'कोई मोबाइल नंबर वाला संपर्क नहीं मिला।'}</Text>}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.contactRow} onPress={() => multiSelect ? toggleSelectedContact(item) : chooseDeviceContact(item)} activeOpacity={0.7}>
+                  <View style={styles.contactAvatar}><Text style={styles.contactAvatarText}>{item.name.trim().charAt(0).toUpperCase()}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.contactName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.contactPhone}>{item.displayPhone}</Text>
+                  </View>
+                  {multiSelect
+                    ? <Icon name={selectedContacts.some((picked) => picked.id === item.id) ? 'checkmark-circle' : 'square-outline'} size={23} color={selectedContacts.some((picked) => picked.id === item.id) ? colors.milk : colors.inkSoft} />
+                    : <Icon name="add-circle-outline" size={22} color={colors.milk} />}
+                </TouchableOpacity>
+              )}
+            />
+            {multiSelect ? (
+              <TouchableOpacity style={[styles.importContactsButton, (!selectedContacts.length || importingContacts) && styles.importContactsButtonDisabled]} onPress={importSelectedContacts} disabled={!selectedContacts.length || importingContacts} activeOpacity={0.85}>
+                {importingContacts ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="person" size={19} color="#FFFFFF" />}
+                <Text style={styles.importContactsText}>{importingContacts ? 'ग्राहक जोड़े जा रहे हैं…' : `चुने हुए ${selectedContacts.length} ग्राहक इम्पोर्ट करें`}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
 
 const makeStyles = (colors) => StyleSheet.create({
   toggle: { alignItems: 'center', marginBottom: 18, paddingVertical: 4 },
+  contactsButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.milk, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: -5, marginBottom: 14 },
+  contactsButtonText: { color: colors.milk, fontSize: 13, fontWeight: '700' },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+  contactsModal: { height: '82%', backgroundColor: colors.panel, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: '800' },
+  modalSubtitle: { color: colors.inkSoft, fontSize: 12, marginTop: 4 },
+  contactSearch: { height: 44, borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 12, color: colors.ink, marginBottom: 10 },
+  contactActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
+  multiSelectButton: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: colors.milk, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  multiSelectButtonActive: { backgroundColor: colors.milk, borderColor: colors.milk },
+  multiSelectText: { color: colors.milk, fontSize: 12, fontWeight: '700' },
+  multiSelectTextActive: { color: '#FFFFFF' },
+  selectAllText: { color: colors.milk, fontSize: 12, fontWeight: '700' },
+  selectionCount: { color: colors.inkSoft, fontSize: 11, marginBottom: 7 },
+  importContactsButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.milk, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 13, marginTop: 10 },
+  importContactsButtonDisabled: { opacity: 0.45 },
+  importContactsText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
+  contactAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.milkLight, alignItems: 'center', justifyContent: 'center' },
+  contactAvatarText: { color: colors.milkDark, fontWeight: '800', fontSize: 16 },
+  contactName: { color: colors.ink, fontWeight: '700', fontSize: 14 },
+  contactPhone: { color: colors.inkSoft, fontSize: 12, marginTop: 3 },
+  noContacts: { color: colors.inkSoft, textAlign: 'center', paddingVertical: 28, fontSize: 13 },
   toggleInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleText: { color: colors.milk, fontSize: 14, fontWeight: '600' },
   form: {

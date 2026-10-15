@@ -35,7 +35,9 @@ function load(env = process.env) {
     jwtSecret: env.JWT_SECRET || (isProd ? '' : devSecret()),
     isProd,
     devShowOtp: env.DEV_SHOW_OTP === 'true' && !isProd,
-    trustProxy: env.TRUST_PROXY ? Number(env.TRUST_PROXY) : false,
+    // Render sits behind a single trusted reverse proxy. Allow an explicit override;
+    // otherwise trust one proxy hop in production and none during local development.
+    trustProxy: env.TRUST_PROXY ? Number(env.TRUST_PROXY) : (isProd ? 1 : false),
     // Configurable for isolated integration tests; production defaults stay conservative.
     credentialRateLimit: Math.max(1, Number(env.AUTH_LOGIN_LIMIT) || 10),
     credentialRateWindowMs: Math.max(1000, Number(env.AUTH_LOGIN_WINDOW_MS) || 15 * 60 * 1000),

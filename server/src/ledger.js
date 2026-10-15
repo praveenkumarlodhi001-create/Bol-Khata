@@ -258,6 +258,45 @@ function createLedger(requireAuth) {
   })
 
   // ===== Malik (dukaan) =====
+  // Import only explicitly selected device contacts; the app never uploads the full address book automatically.
+  router.post('/customers/import', sellerOnly, async (req, res) => {
+    const raw = req.body && req.body.contacts
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 500)
+      return fail(res, 400, 'bad_contacts', 'एक बार में 1 से 500 चुने हुए contacts इम्पोर्ट करें।')
+    const contacts = []
+    for (const item of raw) {
+      const name = str(item && item.name).trim()
+      const phone = str(item && item.phone).trim()
+      if (!name || name.length > 60 || !PHONE_RE.test(phone))
+        return fail(res, 400, 'bad_contact', 'किसी contact का नाम या मोबाइल नंबर सही नहीं है।')
+      contacts.push({ name, phone })
+    }
+
+    const ownerId = toId(req.uid)
+    let added = 0
+    let skipped = 0
+    try {
+      await withLock(String(ownerId), async () => {
+        for (const contact of contacts) {
+          const existing = await Customer.findOne({ ownerId, name: contact.name })
+          if (existing) {
+            if (!existing.phone) {
+              existing.phone = contact.phone
+              await existing.save()
+            }
+            skipped++
+            continue
+          }
+          await findOrCreateCustomer(ownerId, contact.name, contact.phone)
+          added++
+        }
+      })
+      res.status(201).json({ added, skipped, ...(await ownerOverview(ownerId)) })
+    } catch (e) {
+      serverError(res, 'import contacts', e)
+    }
+  })
+
   router.get('/customers', sellerOnly, async (req, res) => {
     try {
       res.json(await ownerOverview(toId(req.uid)))

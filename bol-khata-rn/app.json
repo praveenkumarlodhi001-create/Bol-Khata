@@ -2,20 +2,10 @@
   "expo": {
     "name": "Bol-khata",
     "slug": "bol-khata",
-    "version": "1.12.0",
+    "version": "1.13.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "imageWidth": 120,
-      "resizeMode": "contain",
-      "backgroundColor": "#2E6E5E",
-      "dark": {
-        "image": "./assets/splash-icon.png",
-        "backgroundColor": "#102B25"
-      }
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -26,14 +16,17 @@
         "backgroundColor": "#2E6E5E",
         "monochromeImage": "./assets/monochrome-icon.png"
       },
-      "permissions": []
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_CONTACTS"
+      ]
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vkhatabook.ledger",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "आवाज़ से entry करने के लिए माइक की अनुमति दें। / Allow microphone access to add entries by voice.",
-        "NSSpeechRecognitionUsageDescription": "आपकी आवाज़ को पहचानने के लिए। / Allow speech recognition to transcribe your voice.",
+        "NSMicrophoneUsageDescription": "आवाज़ से entry करने के लिए माइक की ज़रूरत है। / Microphone access is needed to add entries by voice.",
+        "NSSpeechRecognitionUsageDescription": "आपकी आवाज़ को टेक्स्ट में बदलने के लिए। / Speech recognition converts your voice to text.",
         "NSPhotoLibraryUsageDescription": "प्रोफ़ाइल फोटो चुनने के लिए फोटो लाइब्रेरी की अनुमति दें। / Allow photo library access to choose a profile photo.",
         "NSCameraUsageDescription": "प्रोफ़ाइल फोटो लेने के लिए कैमरा की अनुमति दें। / Allow camera access to take a profile photo."
       }
@@ -53,13 +46,30 @@
           "cameraPermission": "प्रोफ़ाइल फोटो लेने के लिए कैमरा की अनुमति दें। / Allow camera access to take a profile photo.",
           "microphonePermission": false
         }
-      ]
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "ग्राहक का नाम और मोबाइल नंबर आसानी से चुनने के लिए Contacts की अनुमति दें। / Allow Contacts access to select a customer name and phone number."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "backgroundColor": "#2E6E5E",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#102B25"
+          }
+        }
+      ],
+      "expo-font"
     ],
     "extra": {
-      "apiUrl": "",
-      "eas": {
-        "projectId": "2a7dd721-b578-42bc-b9d1-7ab65acfefe4"
-      }
+      "apiUrl": "https://bol-khata.onrender.com"
     }
   }
 }

@@ -51,6 +51,7 @@ import {
   getLocalView,
   addTransaction,
   addDailyEntries,
+  importCustomersFromContacts,
   discardFailed,
   deleteCustomer
 } from './src/services/dataService'
@@ -190,6 +191,19 @@ function Dashboard() {
     } catch (e) {
       showToast(e.message || tr('errorToast'), 'err')
       return false
+    }
+  }
+
+  async function handleImportContacts(contacts) {
+    try {
+      const result = await importCustomersFromContacts(contacts)
+      setData(result)
+      showToast(`${result.added || 0} ग्राहक जोड़े गए${result.skipped ? ` · ${result.skipped} पहले से मौजूद` : ''}`, 'ok')
+      runSync(true)
+      return { ok: true, added: result.added || 0, skipped: result.skipped || 0 }
+    } catch (e) {
+      showToast(e.message || 'कॉन्टैक्ट इम्पोर्ट नहीं हो पाए।', 'err')
+      return { ok: false }
     }
   }
 
@@ -369,7 +383,7 @@ function Dashboard() {
             {toast ? <Animated.View style={[styles.sheetToast, toast.kind === 'err' && styles.toastErr, shadow, { opacity: toastProgress, transform: [{ translateY: toastProgress.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }] }]}><View style={styles.toastRow}><Animated.View style={{ transform: [{ scale: toastProgress.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}><Icon name={toast.kind === 'err' ? 'alert-circle-outline' : 'checkmark-circle'} size={20} color="#FFFFFF" cut={toast.kind === 'err' ? colors.alert : colors.milkDark} /></Animated.View><Text style={[styles.toastText, { flexShrink: 1 }]}>{toast.text}</Text></View></Animated.View> : null}
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetContent}>
               <VoiceEntry onAdd={async (...args) => { const ok = await handleAdd(...args); if (ok) setShowEntry(false); return ok }} />
-              <ManualEntryForm customers={data.customers} onAdd={async (...args) => { const ok = await handleAdd(...args); if (ok) setShowEntry(false); return ok }} />
+              <ManualEntryForm customers={data.customers} onImportContacts={handleImportContacts} onAdd={async (...args) => { const ok = await handleAdd(...args); if (ok) setShowEntry(false); return ok }} />
               <DailyCard customers={data.customers} onApply={async (...args) => { const ok = await handleDaily(...args); if (ok) setShowEntry(false); return ok }} />
             </ScrollView>
           </KeyboardAvoidingView>
