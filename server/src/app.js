@@ -7,11 +7,7 @@ const { createPay } = require('./pay')
 // Server login/account aur ledger (grahak, udhar/payment, vajah) dono sambhalta hai — sab MongoDB me.
 function createApp(cfg) {
   const app = express()
-  
-  // Render ke reverse proxy ke liye trust proxy yahan set hoga
-  app.set('trust proxy', 1)
   if (cfg.trustProxy) app.set('trust proxy', cfg.trustProxy)
-
   app.use(cors())
   // Restore ke liye bada body; baaki sab jagah chhota. (Pehla parser chal jaaye to doosra use chhod deta hai.)
   app.use('/api/restore', express.json({ limit: '3mb' }))

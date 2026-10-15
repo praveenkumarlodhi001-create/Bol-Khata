@@ -5,6 +5,7 @@ const mongoose = require('mongoose')
 const rateLimit = require('express-rate-limit')
 const { User, Customer, Transaction, Item } = require('./models')
 const { hasPhotoFlag } = require('./photoFlags')
+const { parseLines, toRow } = require('./items')
 
 const PHONE_RE = /^[6-9]\d{9}$/
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/
@@ -93,7 +94,8 @@ const historyRow = (t) => ({
   type: TYPE_NAME[t.t],
   amount: money(t.a),
   reason: t.r || '',
-  at: new Date(t.d).toISOString()
+  at: new Date(t.d).toISOString(),
+  ...(t.i && t.i.length ? { items: t.i.map(toRow) } : {})
 })
 
 function sortRecent(a, b) {
@@ -212,6 +214,38 @@ function createLedger(requireAuth) {
       res.status(201).json({ item: { id: String(item._id), name: item.name, unit: item.unit, price: item.price ?? null, active: item.active } })
     } catch (e) { if (e && e.code === 11000) return fail(res, 409, 'item_exists', 'यह item पहले से मौजूद है।'); serverError(res, 'item create', e) }
   })
+  // Business type ki taiyaar list se ek saath items jodna (pehle se maujood naam chhod diye jaate hain; hataye hue wapas chalu ho jaate hain)
+  router.post('/items/seed', sellerOnly, async (req, res) => {
+    const raw = req.body && req.body.items
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 60) return fail(res, 400, 'bad_items', 'Items सही नहीं हैं।')
+    const clean = []
+    for (const x of raw) {
+      const name = x && typeof x.name === 'string' ? x.name.trim() : ''
+      const price = x ? x.price : undefined
+      if (!name || name.length > 40 || !['kg', 'litre', 'piece', 'packet'].includes(x.unit)) return fail(res, 400, 'bad_items', 'Items सही नहीं हैं।')
+      if (price !== undefined && price !== null && (typeof price !== 'number' || !Number.isFinite(price) || price < 0 || price > MAX_AMOUNT)) return fail(res, 400, 'bad_item_price', 'कीमत सही नहीं है।')
+      clean.push({ name, unit: x.unit, price })
+    }
+    try {
+      const have = await Item.find({ ownerId: req.uid }).select('name active').lean()
+      const byName = new Map(have.map((i) => [i.name, i]))
+      const fresh = clean.filter((c) => !byName.has(c.name))
+      if (have.length + fresh.length > 200) return fail(res, 413, 'item_limit', 'एक दुकान में अधिकतम 200 items रख सकते हैं।')
+      const ownerId = toId(req.uid)
+      const seen = new Set()
+      const ops = []
+      for (const c of clean) {
+        if (seen.has(c.name)) continue
+        seen.add(c.name)
+        const old = byName.get(c.name)
+        if (!old) ops.push({ insertOne: { document: { ownerId, name: c.name, unit: c.unit, ...(c.price === undefined || c.price === null ? {} : { price: c.price }), active: true } } })
+        else if (!old.active) ops.push({ updateOne: { filter: { ownerId, name: c.name }, update: { $set: { active: true } } } })
+      }
+      if (ops.length) await Item.bulkWrite(ops, { ordered: false })
+      const items = await Item.find({ ownerId: req.uid, active: true }).sort({ name: 1 }).lean()
+      res.status(201).json({ items: items.map(i => ({ id: String(i._id), name: i.name, unit: i.unit, price: i.price ?? null, active: i.active })) })
+    } catch (e) { serverError(res, 'items seed', e) }
+  })
   router.patch('/items/:id', sellerOnly, async (req, res) => {
     const id = toId(req.params.id); if (!id) return fail(res, 404, 'not_found', 'Item नहीं मिला।')
     const update = {}; const body = req.body || {}
@@ -236,9 +270,17 @@ function createLedger(requireAuth) {
     const ownerId = toId(req.uid)
     const name = str(req.body.name).trim()
     const type = req.body.type
-    const amount = money(req.body.amount)
+    let amount = money(req.body.amount)
     const reason = str(req.body.reason).trim()
     const phone = str(req.body.phone).trim()
+    let lines = null
+    if (req.body.items !== undefined && req.body.items !== null) {
+      if (type !== 'udhar') return fail(res, 400, 'bad_items', 'Items सिर्फ़ उधार की entry में लग सकते हैं।')
+      const parsed = parseLines(req.body.items)
+      if (parsed.error) return fail(res, 400, 'bad_items', 'Items सही नहीं हैं (1 से 20, नाम / मात्रा / रेट देखें)।')
+      lines = parsed.items
+      amount = parsed.total // total server nikaalta hai
+    }
 
     if (!name || name.length > 60) return fail(res, 400, 'bad_name', 'ग्राहक का नाम सही नहीं है।')
     if (type !== 'udhar' && type !== 'payment') return fail(res, 400, 'bad_type', 'Type सही नहीं है।')
@@ -268,6 +310,7 @@ function createLedger(requireAuth) {
         const filter = { c: cust._id, t: TYPE[type], a: amount, d: when }
         if (hasAt && (await Transaction.exists(filter))) return
         const doc = { c: cust._id, t: TYPE[type], a: amount, r: reason || undefined, d: when }
+        if (lines) doc.i = lines
         if (day) doc.k = `d-${cust._id}-${day}`
         try {
           await Transaction.create(doc)
@@ -321,6 +364,7 @@ function createLedger(requireAuth) {
         const amount = money(body.amount)
         if (typeof body.amount === 'object' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT)
           return fail(res, 400, 'bad_amount', 'रकम सही नहीं है।')
+        if (txn.i && txn.i.length && amount !== money(txn.a)) txn.i = undefined // rakam badli to purani item list galat ho jaati
         txn.a = amount
       }
       if (body.reason !== undefined) {
@@ -331,6 +375,7 @@ function createLedger(requireAuth) {
       if (body.type !== undefined) {
         if (body.type !== 'udhar' && body.type !== 'payment') return fail(res, 400, 'bad_type', 'Type सही नहीं है।')
         txn.t = TYPE[body.type]
+        if (txn.t === TYPE.payment) txn.i = undefined // items sirf udhar me hote hain
       }
       await txn.save()
       await recompute(cust._id)
@@ -449,7 +494,7 @@ function createLedger(requireAuth) {
         app: BRAND_NAME,
         at: new Date().toISOString(),
         c: customers.map((c) => [c.name, c.phone || '']),
-        t: txns.map((t) => [index.get(String(t.c)), t.t, money(t.a), t.r || '', new Date(t.d).getTime()])
+        t: txns.map((t) => [index.get(String(t.c)), t.t, money(t.a), t.r || '', new Date(t.d).getTime(), ...(t.i && t.i.length ? [t.i.map((x) => [x.n, x.q, x.p, x.u || ''])] : [])])
       })
     } catch (e) {
       serverError(res, 'backup', e)
@@ -477,13 +522,21 @@ function createLedger(requireAuth) {
       const byCustomer = customers.map(() => [])
       for (const row of body.t) {
         if (!Array.isArray(row)) return fail(res, 400, 'bad_backup', 'Backup की कोई entry सही नहीं है।')
-        const [ci, t, a, r, d] = row
+        const [ci, t, a, r, d, rawItems] = row
         const amount = money(a)
         const reason = str(r).trim().slice(0, REASON_MAX)
         if (!Number.isInteger(ci) || ci < 0 || ci >= customers.length || (t !== 0 && t !== 1) ||
             typeof a !== 'number' || !(amount > 0) || amount > MAX_AMOUNT || !Number.isFinite(d) || d < 946684800000 || d > now)
           return fail(res, 400, 'bad_backup', 'Backup की कोई entry सही नहीं है।')
-        byCustomer[ci].push({ t, a: amount, r: reason || undefined, d: new Date(d) })
+        let lines
+        if (rawItems !== undefined) {
+          const parsed = t === 0 && Array.isArray(rawItems)
+            ? parseLines(rawItems.map((x) => (Array.isArray(x) ? { name: x[0], qty: x[1], rate: x[2], unit: x[3] || undefined } : null)))
+            : { error: 'bad' }
+          if (parsed.error) return fail(res, 400, 'bad_backup', 'Backup की कोई entry सही नहीं है।')
+          lines = parsed.items
+        }
+        byCustomer[ci].push({ t, a: amount, r: reason || undefined, d: new Date(d), ...(lines ? { i: lines } : {}) })
       }
 
       let added = 0
@@ -511,13 +564,16 @@ function createLedger(requireAuth) {
       const user = await me(req)
       if (!user) return fail(res, 401, 'bad_token', 'Session खत्म हो गया, फिर से Login करो।')
       const customers = await Customer.find(myAccountsFilter(user)).lean()
-      const owners = await User.find({ _id: { $in: customers.map((c) => c.ownerId) } }).select('name photoVersion hasPhoto').lean()
-      const shopById = new Map(owners.map((o) => [String(o._id), { name: o.name || 'दुकान', photoVersion: Number(o.photoVersion || 0), hasPhoto: hasPhotoFlag(o) }]))
+      const owners = await User.find({ _id: { $in: customers.map((c) => c.ownerId) } }).select('name phone upiId businessType photoVersion hasPhoto').lean()
+      const shopById = new Map(owners.map((o) => [String(o._id), { name: o.name || 'दुकान', phone: o.phone || null, upiId: o.upiId || null, businessType: o.businessType || null, photoVersion: Number(o.photoVersion || 0), hasPhoto: hasPhotoFlag(o) }]))
       const accounts = customers
         .map((c) => ({
           id: String(c._id),
           shopName: (shopById.get(String(c.ownerId)) || {}).name || 'दुकान',
           shopOwnerId: String(c.ownerId),
+          shopPhone: (shopById.get(String(c.ownerId)) || {}).phone || null,
+          shopUpiId: (shopById.get(String(c.ownerId)) || {}).upiId || null,
+          shopBusinessType: (shopById.get(String(c.ownerId)) || {}).businessType || null,
           shopHasPhoto: !!(shopById.get(String(c.ownerId)) || {}).hasPhoto,
           shopPhotoVersion: Number((shopById.get(String(c.ownerId)) || {}).photoVersion || 0),
           myName: c.name,

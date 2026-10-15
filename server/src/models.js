@@ -77,7 +77,9 @@ const transactionSchema = new mongoose.Schema(
     d: { type: Date, required: true, default: Date.now },
     // sirf "roz ki entry" par: d-<grahak id>-<din>. Ek grahak ki ek din ki entry ek hi baar judti hai,
     // chahe do phone se dabao. (Baaki entries par ye nahi hota, taaki storage na badhe.)
-    k: { type: String, maxlength: 60 }
+    k: { type: String, maxlength: 60 },
+    // itemized entry (optional): [{ n naam, q matra, p rate, u unit }]. Sirf jab seller ne items se entry ki ho.
+    i: { type: [new mongoose.Schema({ n: { type: String, maxlength: 40 }, q: Number, p: Number, u: { type: String, enum: ['kg', 'litre', 'piece', 'packet'] } }, { _id: false })], default: undefined }
   },
   { versionKey: false }
 )
