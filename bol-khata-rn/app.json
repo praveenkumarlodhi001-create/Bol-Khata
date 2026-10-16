@@ -17,16 +17,16 @@
         "monochromeImage": "./assets/monochrome-icon.png"
       },
       "permissions": [
-        "RECORD_AUDIO",
-        "READ_CONTACTS"
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
       ]
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vkhatabook.ledger",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "आवाज़ से entry करने के लिए माइक की ज़रूरत है। / Microphone access is needed to add entries by voice.",
-        "NSSpeechRecognitionUsageDescription": "आपकी आवाज़ को टेक्स्ट में बदलने के लिए। / Speech recognition converts your voice to text.",
+        "NSMicrophoneUsageDescription": "आवाज़ से entry करने के लिए माइक की अनुमति दें। / Allow microphone access to add entries by voice.",
+        "NSSpeechRecognitionUsageDescription": "आपकी आवाज़ को पहचानने के लिए। / Allow speech recognition to transcribe your voice.",
         "NSPhotoLibraryUsageDescription": "प्रोफ़ाइल फोटो चुनने के लिए फोटो लाइब्रेरी की अनुमति दें। / Allow photo library access to choose a profile photo.",
         "NSCameraUsageDescription": "प्रोफ़ाइल फोटो लेने के लिए कैमरा की अनुमति दें। / Allow camera access to take a profile photo."
       }
@@ -69,7 +69,10 @@
       "expo-font"
     ],
     "extra": {
-      "apiUrl": "https://bol-khata.onrender.com"
+      "apiUrl": "https://bol-khata.onrender.com",
+      "eas": {
+        "projectId": "2a7dd721-b578-42bc-b9d1-7ab65acfefe4"
+      }
     }
   }
 }

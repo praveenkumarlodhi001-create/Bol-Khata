@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "Bol-khata",
+    "slug": "bol-khata",
+    "version": "1.13.3",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "imageWidth": 120,
+      "resizeMode": "contain",
+      "backgroundColor": "#2E6E5E",
+      "dark": {
+        "image": "./assets/splash-icon.png",
+        "backgroundColor": "#102B25"
+      }
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.vkhatabook.ledger",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2E6E5E",
+        "monochromeImage": "./assets/monochrome-icon.png"
+      },
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_CONTACTS"
+      ]
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.vkhatabook.ledger",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "आवाज़ से entry करने के लिए माइक की ज़रूरत है। / Microphone access is needed to add entries by voice.",
+        "NSSpeechRecognitionUsageDescription": "आपकी आवाज़ को टेक्स्ट में बदलने के लिए। / Speech recognition converts your voice to text.",
+        "NSPhotoLibraryUsageDescription": "प्रोफ़ाइल फोटो चुनने के लिए फोटो लाइब्रेरी की अनुमति दें। / Allow photo library access to choose a profile photo.",
+        "NSCameraUsageDescription": "प्रोफ़ाइल फोटो लेने के लिए कैमरा की अनुमति दें। / Allow camera access to take a profile photo."
+      }
+    },
+    "plugins": [
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "आवाज़ से entry करने के लिए माइक की अनुमति दें। / Allow microphone access to add entries by voice.",
+          "speechRecognitionPermission": "आपकी आवाज़ को पहचानने के लिए। / Allow speech recognition to transcribe your voice."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "फोटो चुनने के लिए गैलरी की अनुमति दें। / Allow gallery access to choose a photo.",
+          "cameraPermission": "प्रोफ़ाइल फोटो लेने के लिए कैमरा की अनुमति दें। / Allow camera access to take a profile photo.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "ग्राहक का नाम और मोबाइल नंबर आसानी से चुनने के लिए Contacts की अनुमति दें। / Allow Contacts access to select a customer name and phone number."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "https://bol-khata.onrender.com"
+    }
+  }
+}
